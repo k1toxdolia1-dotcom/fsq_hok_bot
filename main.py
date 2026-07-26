@@ -287,5 +287,23 @@ def main():
     print("✅ Бот запущен (без повторов, есть избранная карта!)")
     app.run_polling()
 
+if __name__ == "__main__":def main():
+    init_db()
+    os.makedirs("cards", exist_ok=True)
+    
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("card", card))
+    app.add_handler(CommandHandler("inventory", inventory))
+    app.add_handler(CommandHandler("profile", profile))
+    app.add_handler(CommandHandler("setfav", setfav))
+    app.add_handler(CallbackQueryHandler(fav_callback, pattern="fav_"))
+    
+    print("✅ Бот запущен (без повторов, есть избранная карта!)")
+    app.run_polling()
+
 if __name__ == "__main__":
     main()
+    main()
+    
