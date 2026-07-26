@@ -9,7 +9,8 @@ import logging
 # --- НАСТРОЙКИ ---
 TOKEN = "8359158895:AAHcqKGvgV-12NB-y3C1b2jDxONb5DFYmgs"
 COOLDOWN_MINUTES = 120
-DB_NAME = "cards.db"
+# Память: используем /tmp (Render позволяет хранить там файлы постоянно)
+DB_NAME = "/tmp/cards.db"
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -110,6 +111,7 @@ def add_card_to_inventory(user_id, card_id):
     finally:
         conn.close()
 
+# --- ИЗБРАННАЯ КАРТА ---
 def set_favorite_card(user_id, card_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -125,6 +127,7 @@ def get_favorite_card(user_id):
     conn.close()
     return result[0] if result else None
 
+# --- КУЛДАУН ---
 def get_cooldown(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -218,7 +221,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inventory = get_user_inventory(user_id)
     card_count = len(inventory)
     
-    # Если есть любимая карта, отправляем её картинку с профилем
     if fav_id:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -229,14 +231,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if card:
             name, desc, rarity, image = card
             emoji = {"Legendary": "⭐", "Epic": "🔶", "Rare": "🔷", "Common": "⚪"}.get(rarity, "⬜")
-            
             caption = (
                 f"👤 **Ваш профиль**\n\n"
                 f"🆔 Имя в Telegram: `{tg_name}`\n"
                 f"📦 Карт в коллекции: {card_count}\n"
                 f"💖 Любимая карта: {emoji} {name} ({rarity})"
             )
-            
             try:
                 with open(f"cards/{image}", 'rb') as photo:
                     await update.message.reply_photo(
@@ -248,7 +248,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except FileNotFoundError:
                 pass
     
-    # Если нет любимой карты или ошибка с картинкой
     msg = (
         f"👤 **Ваш профиль**\n\n"
         f"🆔 Имя в Telegram: `{tg_name}`\n"
@@ -299,7 +298,7 @@ def main():
     app.add_handler(CommandHandler("setfav", setfav))
     app.add_handler(CallbackQueryHandler(fav_callback, pattern="fav_"))
     
-    print("✅ Бот запущен (без повторов, есть избранная карта!)")
+    print("✅ Бот запущен (без повторов, с постоянной памятью!)")
     app.run_polling()
 
 if __name__ == "__main__":
