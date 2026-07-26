@@ -9,8 +9,9 @@ import logging
 # --- НАСТРОЙКИ ---
 TOKEN = "8359158895:AAHcqKGvgV-12NB-y3C1b2jDxONb5DFYmgs"
 COOLDOWN_MINUTES = 120
-# Память: используем /tmp (Render позволяет хранить там файлы постоянно)
-DB_NAME = "/tmp/cards.db"
+
+# Подключаем переменную из Render (бесплатная постоянная память)
+DB_NAME = os.environ.get('DB_PATH', '/tmp/cards.db')
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -19,7 +20,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Карточки
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,6 @@ def init_db():
         )
     ''')
     
-    # Инвентарь
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory (
             user_id INTEGER NOT NULL,
@@ -40,7 +39,6 @@ def init_db():
         )
     ''')
     
-    # Кулдауны
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cooldowns (
             user_id INTEGER PRIMARY KEY,
@@ -48,7 +46,6 @@ def init_db():
         )
     ''')
     
-    # Избранное
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS favorites (
             user_id INTEGER PRIMARY KEY,
@@ -56,7 +53,6 @@ def init_db():
         )
     ''')
     
-    # Заполняем колоду (если пусто)
     cursor.execute("SELECT COUNT(*) FROM cards")
     if cursor.fetchone()[0] == 0:
         sample = [
@@ -111,7 +107,6 @@ def add_card_to_inventory(user_id, card_id):
     finally:
         conn.close()
 
-# --- ИЗБРАННАЯ КАРТА ---
 def set_favorite_card(user_id, card_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -127,7 +122,6 @@ def get_favorite_card(user_id):
     conn.close()
     return result[0] if result else None
 
-# --- КУЛДАУН ---
 def get_cooldown(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -298,7 +292,7 @@ def main():
     app.add_handler(CommandHandler("setfav", setfav))
     app.add_handler(CallbackQueryHandler(fav_callback, pattern="fav_"))
     
-    print("✅ Бот запущен (без повторов, с постоянной памятью!)")
+    print("✅ Бот запущен (с вечной памятью через переменную!)")
     app.run_polling()
 
 if __name__ == "__main__":
