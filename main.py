@@ -1,5 +1,3 @@
-
-    
 import sqlite3
 import random
 import os
@@ -10,7 +8,7 @@ import logging
 
 # --- НАСТРОЙКИ ---
 TOKEN = "8359158895:AAHcqKGvgV-12NB-y3C1b2jDxONb5DFYmgs"
-COOLDOWN_MINUTES = 120  # 2 часа
+COOLDOWN_MINUTES = 120
 DB_NAME = "cards.db"
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -20,6 +18,7 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
+    # Карточки
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +29,7 @@ def init_db():
         )
     ''')
     
+    # Инвентарь
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory (
             user_id INTEGER NOT NULL,
@@ -39,6 +39,7 @@ def init_db():
         )
     ''')
     
+    # Кулдауны
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cooldowns (
             user_id INTEGER PRIMARY KEY,
@@ -46,6 +47,7 @@ def init_db():
         )
     ''')
     
+    # Избранное
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS favorites (
             user_id INTEGER PRIMARY KEY,
@@ -53,6 +55,7 @@ def init_db():
         )
     ''')
     
+    # Заполняем колоду (если пусто)
     cursor.execute("SELECT COUNT(*) FROM cards")
     if cursor.fetchone()[0] == 0:
         sample = [
@@ -69,7 +72,7 @@ def init_db():
         conn.commit()
     conn.close()
 
-# --- ФУНКЦИИ БАЗЫ ДАННЫХ ---
+# --- ФУНКЦИИ БАЗЫ ---
 def get_missing_cards(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -107,7 +110,6 @@ def add_card_to_inventory(user_id, card_id):
     finally:
         conn.close()
 
-# --- ИЗБРАННАЯ КАРТА ---
 def set_favorite_card(user_id, card_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -123,7 +125,6 @@ def get_favorite_card(user_id):
     conn.close()
     return result[0] if result else None
 
-# --- КУЛДАУН ---
 def get_cooldown(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -141,13 +142,13 @@ def set_cooldown(user_id):
 
 def is_cooldown_expired(user_id):
     last_time = get_cooldown(user_id)
-    if not last_time: 
+    if not last_time:
         return True
     return datetime.now() - datetime.fromisoformat(last_time) > timedelta(minutes=COOLDOWN_MINUTES)
 
 def get_remaining_cooldown(user_id):
     last_time = get_cooldown(user_id)
-    if not last_time: 
+    if not last_time:
         return 0
     elapsed = (datetime.now() - datetime.fromisoformat(last_time)).total_seconds()
     remaining = COOLDOWN_MINUTES * 60 - elapsed
@@ -157,10 +158,10 @@ def get_remaining_cooldown(user_id):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Добро пожаловать в HoK Collection!\n\n"
-        "🎴 /card - Получить новую карту (уникальную)\n"
+        "🎴 /card - Получить новую карту (без повторов)\n"
         "📦 /inventory - Посмотреть коллекцию\n"
-        "⭐ /setfav - Выбрать любимую карту\n"
-        "💖 /profile - Показать профиль с любимой картой"
+        "👤 /profile - Показать ваш профиль\n"
+        "⭐ /setfav - Выбрать любимую карту"
     )
 
 async def card(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -211,33 +212,51 @@ async def inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    tg_name = update.effective_user.first_name
+    
     fav_id = get_favorite_card(user_id)
+    inventory = get_user_inventory(user_id)
+    card_count = len(inventory)
     
-    if fav_id is None:
-        await update.message.reply_text("💔 У тебя пока нет любимой карты. Используй /setfav чтобы выбрать!")
-        return
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, description, rarity, image_name FROM cards WHERE id = ?", (fav_id,))
-    card = cursor.fetchone()
-    conn.close()
-    
-    if not card:
-        await update.message.reply_text("❌ Ошибка: карта не найдена в базе.")
-        return
-    
-    name, desc, rarity, image = card
-    emoji = {"Legendary": "⭐", "Epic": "🔶", "Rare": "🔷", "Common": "⚪"}.get(rarity, "⬜")
-    
-    try:
-        with open(f"cards/{image}", 'rb') as photo:
-            await update.message.reply_photo(
-                photo=photo,
-                caption=f"💖 Твоя любимая карта:\n\n{emoji} {name}\n📝 {desc}\n🏷 {rarity}"
+    # Если есть любимая карта, отправляем её картинку с профилем
+    if fav_id:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, description, rarity, image_name FROM cards WHERE id = ?", (fav_id,))
+        card = cursor.fetchone()
+        conn.close()
+        
+        if card:
+            name, desc, rarity, image = card
+            emoji = {"Legendary": "⭐", "Epic": "🔶", "Rare": "🔷", "Common": "⚪"}.get(rarity, "⬜")
+            
+            caption = (
+                f"👤 **Ваш профиль**\n\n"
+                f"🆔 Имя в Telegram: `{tg_name}`\n"
+                f"📦 Карт в коллекции: {card_count}\n"
+                f"💖 Любимая карта: {emoji} {name} ({rarity})"
             )
-    except FileNotFoundError:
-        await update.message.reply_text(f"💖 Твоя любимая карта: {emoji} {name}")
+            
+            try:
+                with open(f"cards/{image}", 'rb') as photo:
+                    await update.message.reply_photo(
+                        photo=photo,
+                        caption=caption,
+                        parse_mode="Markdown"
+                    )
+                return
+            except FileNotFoundError:
+                pass
+    
+    # Если нет любимой карты или ошибка с картинкой
+    msg = (
+        f"👤 **Ваш профиль**\n\n"
+        f"🆔 Имя в Telegram: `{tg_name}`\n"
+        f"📦 Карт в коллекции: {card_count}\n"
+        f"💖 Любимая карта: Не выбрана\n\n"
+        f"⭐ Используй /setfav чтобы выбрать!"
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def setfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
