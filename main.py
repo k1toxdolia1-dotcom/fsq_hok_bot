@@ -1,4 +1,5 @@
 
+    
 import sqlite3
 import random
 import os
@@ -19,7 +20,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Таблица карточек (колода)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,6 @@ def init_db():
         )
     ''')
     
-    # Инвентарь (уникальные карты для каждого пользователя)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory (
             user_id INTEGER NOT NULL,
@@ -40,7 +39,6 @@ def init_db():
         )
     ''')
     
-    # Кулдауны
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cooldowns (
             user_id INTEGER PRIMARY KEY,
@@ -48,7 +46,6 @@ def init_db():
         )
     ''')
     
-    # Избранная карта в профиле
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS favorites (
             user_id INTEGER PRIMARY KEY,
@@ -56,7 +53,6 @@ def init_db():
         )
     ''')
     
-    # Заполняем колоду (если пусто)
     cursor.execute("SELECT COUNT(*) FROM cards")
     if cursor.fetchone()[0] == 0:
         sample = [
@@ -74,8 +70,6 @@ def init_db():
     conn.close()
 
 # --- ФУНКЦИИ БАЗЫ ДАННЫХ ---
-
-# Получить список карт, которых у пользователя ещё НЕТ
 def get_missing_cards(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -88,7 +82,6 @@ def get_missing_cards(user_id):
     conn.close()
     return result
 
-# Получить инвентарь пользователя
 def get_user_inventory(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -102,18 +95,17 @@ def get_user_inventory(user_id):
     conn.close()
     return result
 
-# Добавить карту в инвентарь
 def add_card_to_inventory(user_id, card_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
         cursor.execute("INSERT INTO inventory (user_id, card_id) VALUES (?, ?)", (user_id, card_id))
         conn.commit()
-        success = True
+        return True
     except sqlite3.IntegrityError:
-        success = False
-    conn.close()
-    return success
+        return False
+    finally:
+        conn.close()
 
 # --- ИЗБРАННАЯ КАРТА ---
 def set_favorite_card(user_id, card_id):
@@ -122,6 +114,7 @@ def set_favorite_card(user_id, card_id):
     cursor.execute("INSERT OR REPLACE INTO favorites (user_id, card_id) VALUES (?, ?)", (user_id, card_id))
     conn.commit()
     conn.close()
+
 def get_favorite_card(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -148,12 +141,14 @@ def set_cooldown(user_id):
 
 def is_cooldown_expired(user_id):
     last_time = get_cooldown(user_id)
-    if not last_time: return True
+    if not last_time: 
+        return True
     return datetime.now() - datetime.fromisoformat(last_time) > timedelta(minutes=COOLDOWN_MINUTES)
 
 def get_remaining_cooldown(user_id):
     last_time = get_cooldown(user_id)
-    if not last_time: return 0
+    if not last_time: 
+        return 0
     elapsed = (datetime.now() - datetime.fromisoformat(last_time)).total_seconds()
     remaining = COOLDOWN_MINUTES * 60 - elapsed
     return max(0, int(remaining))
@@ -271,23 +266,8 @@ async def fav_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_favorite_card(user_id, card_id)
     await query.edit_message_text("✅ Любимая карта обновлена! Используй /profile чтобы посмотреть.")
 
+# --- ЗАПУСК БОТА ---
 def main():
-    init_db()
-    os.makedirs("cards", exist_ok=True)
-    
-    app = Application.builder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("card", card))
-    app.add_handler(CommandHandler("inventory", inventory))
-    app.add_handler(CommandHandler("profile", profile))
-    app.add_handler(CommandHandler("setfav", setfav))
-    app.add_handler(CallbackQueryHandler(fav_callback, pattern="fav_"))
-    
-    print("✅ Бот запущен (без повторов, есть избранная карта!)")
-    app.run_polling()
-
-if __name__ == "__main__":def main():
     init_db()
     os.makedirs("cards", exist_ok=True)
     
@@ -305,5 +285,3 @@ if __name__ == "__main__":def main():
 
 if __name__ == "__main__":
     main()
-    main()
-    
